@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Participant {
+  id           String    @id @default(cuid())
+  sessionId    String    @unique
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  attempts     Attempt[]
+}
+
+model Attempt {
+  id                String      @id @default(cuid())
+  participantId     String
+  attemptNumber     Int
+  promptText        String
+  totalScore        Int
+  evaluationLevel   String
+  rubricBreakdown   String
+  feedback          String
+  createdAt         DateTime    @default(now())
+  participant      Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([participantId, attemptNumber])
+  @@index([createdAt])
+  @@index([participantId])
+}
