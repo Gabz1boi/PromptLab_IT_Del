@@ -1,3 +1,4 @@
+
 export type RubricKey =
   | "persona"
   | "task"
@@ -52,7 +53,8 @@ type Rule = {
   contextPatterns?: RegExp[];
 };
 
-const rx = (...patterns: string[]) => patterns.map((p) => new RegExp(p, "i"));
+const rx = (...patterns: string[]) =>
+  patterns.map((p) => new RegExp(p, "i"));
 
 const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }> = {
   persona: {
@@ -92,6 +94,7 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
   task: {
     label: "Task",
     max: 20,
@@ -138,6 +141,7 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
   context: {
     label: "Context",
     max: 20,
@@ -184,6 +188,7 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
   format: {
     label: "Format",
     max: 15,
@@ -220,6 +225,8 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
+ 
   examples: {
     label: "Examples",
     max: 10,
@@ -228,24 +235,29 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
         id: "examples_request",
         label: "Meminta contoh yang relevan",
         points: 5,
-        patterns: rx("\\b(berikan contoh|sertakan contoh|contoh sederhana|contoh penerapan|contoh kasus|ilustrasi|analog[iy]|give examples|provide examples|with examples)\\b"),
+        patterns: rx(
+          "\\b(berikan contoh|beri contoh|sertakan contoh|contoh sederhana|contoh penerapan|contoh kasus|contoh|misalnya|sebagai contoh|ilustrasi|analogi|example|examples|for example|give an example|give me an example|provide an example|show an example|give examples|provide examples|show examples|with examples|sample|samples)\\b"
+        ),
         evidenceLabel: "Permintaan contoh ditemukan",
         strength: "Prompt meminta contoh untuk membantu pemahaman.",
         weakness: "Prompt belum meminta contoh pendukung.",
-        suggestion: "Minta contoh sederhana yang dekat dengan pengalaman sehari-hari."
+        suggestion: "Minta Gemini memberikan contoh sederhana yang relevan dengan materi dan kebutuhan pembelajaran."
       },
       {
         id: "examples_specific",
         label: "Menentukan jenis demonstrasi atau contoh",
         points: 5,
-        patterns: rx("\\b(contoh kode|kode program|potongan kode|simulasi|input[- ]output|hasil keluaran|analogi kehidupan|kehidupan sehari[- ]hari|studi kasus|sample code|code example)\\b"),
+        patterns: rx(
+          "\\b(contoh kode|kode program|potongan kode|simulasi|input[- ]output|hasil keluaran|analogi kehidupan|kehidupan sehari[- ]hari|studi kasus|example code|code example|sample code|code snippet|worked example|sample input|real[- ]world example|practical example|illustration|analogy)\\b"
+        ),
         evidenceLabel: "Jenis contoh atau demonstrasi ditemukan",
         strength: "Jenis contoh yang diminta relevan dengan materi pemrograman.",
         weakness: "Jenis contoh belum ditentukan sehingga hasil demonstrasi berpotensi terlalu umum.",
-        suggestion: "Minta contoh kode untuk setiap loop, lengkap dengan input dan output atau analogi sederhana."
+        suggestion: "Minta contoh kode untuk setiap jenis loop, lengkap dengan input, output, atau analogi sederhana."
       }
     ]
   },
+
   constraints: {
     label: "Constraints",
     max: 10,
@@ -292,6 +304,7 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
   clarity: {
     label: "Kejelasan & Kekhususan",
     max: 5,
@@ -318,6 +331,7 @@ const rules: Record<RubricKey, { label: string; max: number; criteria: Rule[] }>
       }
     ]
   },
+
   responsible_ai: {
     label: "AI Bertanggung Jawab & Verifikasi",
     max: 5,
@@ -367,11 +381,18 @@ function normalize(text: string): string {
 
 function extractEvidence(text: string, patterns: RegExp[]): string[] {
   const found: string[] = [];
+
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match?.[0]) found.push(match[0]);
+
+    if (match?.[0]) {
+      found.push(match[0]);
+    }
   }
-  return [...new Set(found)].slice(0, 4);
+
+  return found
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .slice(0, 4);
 }
 
 function isContradictory(text: string): boolean {
@@ -380,39 +401,73 @@ function isContradictory(text: string): boolean {
     /(?:sangat detail|secara sangat rinci)[\s\S]{0,80}(?:satu kalimat saja|maksimal 1 kalimat)/i,
     /(?:jawab langsung|langsung berikan jawaban)[\s\S]{0,80}(?:jangan berikan jawaban|jangan langsung menjawab)/i
   ];
+
   return contradictions.some((p) => p.test(text));
 }
 
 function looksLikeKeywordStuffing(text: string): boolean {
   const words = text.split(/\s+/).filter(Boolean);
-  const actionCount = (text.match(/\b(jelaskan|uraikan|bandingkan|ajarkan|buatkan|tunjukkan|analisis|explain|compare|teach)\b/gi) || []).length;
+
+  const actionCount =
+    (text.match(/\b(jelaskan|uraikan|bandingkan|ajarkan|buatkan|tunjukkan|analisis|explain|compare|teach)\b/gi) || []).length;
+
   const commaCount = (text.match(/[,;|]/g) || []).length;
   const sentenceCount = (text.match(/[.!?]/g) || []).length;
+
   const listLike = commaCount >= 5 && sentenceCount <= 1 && actionCount <= 1;
   const shortKeywordList = words.length < 28 && commaCount >= 3 && actionCount <= 1;
+
   return listLike || shortKeywordList;
 }
 
-function scoreRule(rule: Rule, text: string): { score: number; evidence: string[] } {
+function scoreRule(
+  rule: Rule,
+  text: string
+): { score: number; evidence: string[] } {
   if (rule.id === "clarity_consistency") {
     const stuffing = looksLikeKeywordStuffing(text);
     const contradiction = isContradictory(text);
-    if (stuffing || contradiction) return { score: 0, evidence: [stuffing ? "Susunan prompt terdeteksi seperti daftar kata kunci" : "Ditemukan pola instruksi yang berpotensi bertentangan"] };
-    return { score: 2, evidence: ["Tidak ditemukan pola konflik yang jelas"] };
+
+    if (stuffing || contradiction) {
+      return {
+        score: 0,
+        evidence: [
+          stuffing
+            ? "Susunan prompt terdeteksi seperti daftar kata kunci"
+            : "Ditemukan pola instruksi yang berpotensi bertentangan"
+        ]
+      };
+    }
+
+    return {
+      score: 2,
+      evidence: ["Tidak ditemukan pola konflik yang jelas"]
+    };
   }
 
   const evidence = extractEvidence(text, rule.patterns);
-  if (evidence.length === 0) return { score: 0, evidence: [] };
+
+  if (evidence.length === 0) {
+    return { score: 0, evidence: [] };
+  }
 
   if (rule.contextPatterns?.length) {
     const contextual = rule.contextPatterns.some((p) => p.test(text));
-    if (!contextual) return { score: 0, evidence };
+
+    if (!contextual) {
+      return { score: 0, evidence };
+    }
   }
 
-  // Frasa harus berada dalam prompt yang cukup berbentuk instruksi, bukan daftar kata acak.
+  // Frasa harus berada dalam prompt yang cukup berbentuk instruksi,
+  // bukan daftar kata acak.
   if (looksLikeKeywordStuffing(text) && rule.id !== "constraints_boundary") {
-    const instructionPresent = /\b(jelaskan|uraikan|bandingkan|ajarkan|buatkan|tunjukkan|demonstrasikan|minta|gunakan|sertakan|berikan|bantu|bimbing|bertindak|act as)\b/i.test(text);
-    if (!instructionPresent) return { score: 0, evidence };
+    const instructionPresent =
+      /\b(jelaskan|uraikan|bandingkan|ajarkan|buatkan|tunjukkan|demonstrasikan|minta|gunakan|sertakan|berikan|bantu|bimbing|bertindak|act as)\b/i.test(text);
+
+    if (!instructionPresent) {
+      return { score: 0, evidence };
+    }
   }
 
   return { score: rule.points, evidence };
@@ -421,6 +476,7 @@ function scoreRule(rule: Rule, text: string): { score: number; evidence: string[
 export function evaluatePrompt(rawPrompt: string): EvaluationResult {
   const prompt = normalize(rawPrompt);
   const wordCount = prompt.split(/\s+/).filter(Boolean).length;
+
   const rubricDetails: RubricResult[] = [];
   const strengths: string[] = [];
   const weaknesses: string[] = [];
@@ -435,14 +491,20 @@ export function evaluatePrompt(rawPrompt: string): EvaluationResult {
     for (const rule of group.criteria) {
       const result = scoreRule(rule, prompt);
       const score = Math.max(0, Math.min(rule.points, result.score));
+
       groupScore += score;
+
       const passed = score === rule.points;
-      if (passed) strengths.push(rule.strength);
-      else {
+
+      if (passed) {
+        strengths.push(rule.strength);
+      } else {
         weaknesses.push(rule.weakness);
         suggestions.push(rule.suggestion);
       }
+
       allEvidence.push(...result.evidence);
+
       criteriaResults.push({
         id: rule.id,
         label: rule.label,
@@ -464,29 +526,49 @@ export function evaluatePrompt(rawPrompt: string): EvaluationResult {
     });
   }
 
-  // Penalti kejelasan untuk prompt yang sangat pendek atau berupa daftar kata tanpa instruksi.
+  // Penalti kejelasan untuk prompt yang sangat pendek.
   const clarityGroup = rubricDetails.find((r) => r.key === "clarity");
+
   if (clarityGroup && wordCount < 5) {
-    const c = clarityGroup.criteria.find((x) => x.id === "clarity_instruction");
-    if (c && c.score > 0) {
-      clarityGroup.score -= c.score;
-      c.score = 0;
-      c.evidence = ["Prompt terlalu singkat untuk menunjukkan instruksi yang utuh"];
+    const criterion = clarityGroup.criteria.find(
+      (item) => item.id === "clarity_instruction"
+    );
+
+    if (criterion && criterion.score > 0) {
+      clarityGroup.score -= criterion.score;
+      criterion.score = 0;
+      criterion.evidence = [
+        "Prompt terlalu singkat untuk menunjukkan instruksi yang utuh"
+      ];
     }
   }
 
-  const total = rubricDetails.reduce((sum, item) => sum + item.score, 0);
+  const total = rubricDetails.reduce(
+    (sum, item) => sum + item.score,
+    0
+  );
+
   const totalScore = Math.max(0, Math.min(100, total));
+
   const level =
-    totalScore >= 90 ? "Excellent" :
-    totalScore >= 75 ? "Good" :
-    totalScore >= 60 ? "Developing" :
-    totalScore >= 40 ? "Basic Understanding" :
-    "Needs Major Improvement";
+    totalScore >= 90
+      ? "Excellent"
+      : totalScore >= 75
+        ? "Good"
+        : totalScore >= 60
+          ? "Developing"
+          : totalScore >= 40
+            ? "Basic Understanding"
+            : "Needs Major Improvement";
 
   const breakdown = {} as EvaluationResult["breakdown"];
+
   for (const item of rubricDetails) {
-    breakdown[item.key] = { score: item.score, max: item.max, label: item.label };
+    breakdown[item.key] = {
+      score: item.score,
+      max: item.max,
+      label: item.label
+    };
   }
 
   return {
@@ -494,10 +576,23 @@ export function evaluatePrompt(rawPrompt: string): EvaluationResult {
     evaluation_level: level,
     max_attempts: 4,
     breakdown,
-    strengths: [...new Set(strengths)].slice(0, 6),
-    weaknesses: [...new Set(weaknesses)].slice(0, 8),
-    suggestions: [...new Set(suggestions)].slice(0, 8),
-    evidence: [...new Set(allEvidence)].slice(0, 15),
+
+    strengths: strengths
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .slice(0, 6),
+
+    weaknesses: weaknesses
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .slice(0, 8),
+
+    suggestions: suggestions
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .slice(0, 8),
+
+    evidence: allEvidence
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .slice(0, 15),
+
     rubric_details: rubricDetails
   };
 }
@@ -507,5 +602,6 @@ export function getEvaluationLabel(score: number): string {
   if (score >= 75) return "Good";
   if (score >= 60) return "Developing";
   if (score >= 40) return "Basic Understanding";
+
   return "Needs Major Improvement";
 }
